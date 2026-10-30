@@ -28,6 +28,7 @@ mod ingestion;
 mod island_events;
 mod legacy;
 mod log_files;
+mod on_demand_pacing;
 mod presentation;
 mod prices;
 mod pricing;

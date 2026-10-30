@@ -330,6 +330,14 @@ pub fn read(host: &dyn Host) -> Result<Reading, String> {
                 }
                 // The dashboard's used/limit fields price spending pools. The
                 // source does not expose a token/credit capacity for these rows.
+                if key == "extra" {
+                    let pool = &body["individualUsage"]["onDemand"];
+                    if let (Some(used), Some(limit)) =
+                        (number(&pool["used"]), number(&pool["limit"]))
+                    {
+                        quota["spending"] = json!({"used": used, "limit": limit, "currency": "USD"});
+                    }
+                }
                 quota
             })
         })
@@ -480,6 +488,14 @@ mod tests {
             ]
             .map(|window| format!("{account}/{window}"))
         );
+        let on_demand = reading
+            .quotas
+            .iter()
+            .find(|q| q["legacyWindowId"].as_str() == Some(&format!("{account}/cursor:extra")))
+            .unwrap();
+        assert_eq!(on_demand["spending"]["used"], 1.0);
+        assert_eq!(on_demand["spending"]["limit"], 10.0);
+        assert_eq!(on_demand["spending"]["currency"], "USD");
     }
 
     #[test]

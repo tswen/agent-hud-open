@@ -37,6 +37,7 @@ import {
   type Measure,
 } from "./theme";
 import { SourceTokenChart } from "./TokenChartSection";
+import { OnDemandPacingDetails } from "../OnDemandPacingDetails";
 
 export function MetricPicker({
   selected,
@@ -343,10 +344,12 @@ export function QuotaWidgets({
     return (
       <>
         {rows.map((row) => (
-          <SourceQuotaRow
-            key={row.id}
-            {...{ row, measure, now, light, showReset, onStats }}
-          />
+          <div key={row.id}>
+            <SourceQuotaRow
+              {...{ row, measure, now, light, showReset, onStats }}
+            />
+            <OnDemandPacingDetails row={row} now={now} light={light} />
+          </div>
         ))}
       </>
     );
@@ -494,6 +497,12 @@ export function QuotaWidgets({
                 : ""}
               {showReset || measure !== "quota" ? metric.detail : ""}
             </span>
+            <OnDemandPacingDetails
+              row={row}
+              now={now}
+              light={light}
+              compact
+            />
           </div>
         );
       })}
