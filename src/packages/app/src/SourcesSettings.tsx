@@ -443,71 +443,78 @@ export default function SourcesSettings({
                               cursor: "grab",
                             }}
                           >
-                          <span style={{ flex: 1 }}>{window.name}</span>
-                          <span style={{ color: "var(--muted-foreground)" }}>
-                            {quotaPercentLabel(
-                              window.usedPercent,
-                              snapshot.settings.quotaDisplay,
-                            )}
-                          </span>
-                          <Switch
-                            checked={
-                              !quotaRowHidden(window, block.hiddenRows ?? [])
-                            }
-                            disabled={pending}
-                            aria-label={t("Show quota window", "显示额度窗口")}
-                            onCheckedChange={(show) =>
-                              void changeBlock({
-                                hiddenRows: show
-                                  ? withRowShown(
-                                      block.hiddenRows ?? [],
-                                      window,
-                                      windows,
-                                    )
-                                  : [
-                                      ...new Set([
-                                        ...(block.hiddenRows ?? []),
-                                        quotaRowKey(window),
-                                      ]),
-                                    ],
-                              })
-                            }
-                          />
-                          <Button
-                            size="icon-xs"
-                            variant="ghost"
-                            disabled={
-                              pending ||
-                              windowOrder.indexOf(quotaRowKey(window)) === 0
-                            }
-                            onClick={() =>
-                              void changeBlock({
-                                rows: move(
-                                  windowOrder,
-                                  quotaRowKey(window),
-                                  -1,
-                                ),
-                              })
-                            }
-                          >
-                            <ChevronUp size={12} />
-                          </Button>
-                          <Button
-                            size="icon-xs"
-                            variant="ghost"
-                            disabled={
-                              pending ||
-                              windowOrder.indexOf(quotaRowKey(window)) ===
-                                windowOrder.length - 1
-                            }
-                            onClick={() =>
-                              void changeBlock({
-                                rows: move(windowOrder, quotaRowKey(window), 1),
-                              })
-                            }
-                          >
-                            <ChevronDown size={12} />
-                          </Button>
+                            <span style={{ flex: 1 }}>{window.name}</span>
+                            <span style={{ color: "var(--muted-foreground)" }}>
+                              {quotaPercentLabel(
+                                window.usedPercent,
+                                snapshot.settings.quotaDisplay,
+                              )}
+                            </span>
+                            <Switch
+                              checked={
+                                !quotaRowHidden(window, block.hiddenRows ?? [])
+                              }
+                              disabled={pending}
+                              aria-label={t(
+                                "Show quota window",
+                                "显示额度窗口",
+                              )}
+                              onCheckedChange={(show) =>
+                                void changeBlock({
+                                  hiddenRows: show
+                                    ? withRowShown(
+                                        block.hiddenRows ?? [],
+                                        window,
+                                        windows,
+                                      )
+                                    : [
+                                        ...new Set([
+                                          ...(block.hiddenRows ?? []),
+                                          quotaRowKey(window),
+                                        ]),
+                                      ],
+                                })
+                              }
+                            />
+                            <Button
+                              size="icon-xs"
+                              variant="ghost"
+                              disabled={
+                                pending ||
+                                windowOrder.indexOf(quotaRowKey(window)) === 0
+                              }
+                              onClick={() =>
+                                void changeBlock({
+                                  rows: move(
+                                    windowOrder,
+                                    quotaRowKey(window),
+                                    -1,
+                                  ),
+                                })
+                              }
+                            >
+                              <ChevronUp size={12} />
+                            </Button>
+                            <Button
+                              size="icon-xs"
+                              variant="ghost"
+                              disabled={
+                                pending ||
+                                windowOrder.indexOf(quotaRowKey(window)) ===
+                                  windowOrder.length - 1
+                              }
+                              onClick={() =>
+                                void changeBlock({
+                                  rows: move(
+                                    windowOrder,
+                                    quotaRowKey(window),
+                                    1,
+                                  ),
+                                })
+                              }
+                            >
+                              <ChevronDown size={12} />
+                            </Button>
                           </div>
                           {isCursorOnDemandQuota(window) &&
                             (() => {

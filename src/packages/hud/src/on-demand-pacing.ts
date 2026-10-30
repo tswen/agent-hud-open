@@ -113,8 +113,7 @@ export function onDemandPacingLines(
     return null;
   }
   const { language, calendar } = settings;
-  const days =
-    calendarDaysUntilReset(row.resetAt, now, calendar.timeZone) ?? 0;
+  const days = calendarDaysUntilReset(row.resetAt, now, calendar.timeZone) ?? 0;
   const weekdays = weekdaysUntilReset(row.resetAt, now, calendar.timeZone);
   const untilReset = say(
     language,
@@ -129,14 +128,9 @@ export function onDemandPacingLines(
           `工作日日均可用 ≈ ${moneyShort(remaining / weekdays, spending.currency, language)}`,
           `Weekday daily budget ≈ ${moneyShort(remaining / weekdays, spending.currency, language)}`,
         )
-      : say(
-          language,
-          "工作日日均可用：N/A",
-          "Weekday daily budget: N/A",
-        );
+      : say(language, "工作日日均可用：N/A", "Weekday daily budget: N/A");
   const todayUsed = row.onDemandPacing?.todayUsed;
-  const daily =
-    weekdays > 0 ? remaining / weekdays : Number.NaN;
+  const daily = weekdays > 0 ? remaining / weekdays : Number.NaN;
   let todayRatio: string;
   if (todayUsed == null || !Number.isFinite(todayUsed) || !(daily > 0)) {
     todayRatio = say(
@@ -147,7 +141,11 @@ export function onDemandPacingLines(
   } else {
     const ratio = todayUsed / daily;
     const shown =
-      ratio >= 10 ? ratio.toFixed(1) : ratio >= 1 ? ratio.toFixed(2) : ratio.toFixed(2);
+      ratio >= 10
+        ? ratio.toFixed(1)
+        : ratio >= 1
+          ? ratio.toFixed(2)
+          : ratio.toFixed(2);
     todayRatio = say(
       language,
       `今日已用 / 日均 ≈ ${shown}`,
@@ -155,4 +153,15 @@ export function onDemandPacingLines(
     );
   }
   return { untilReset, dailyBudget, todayRatio };
+}
+
+/** The three lines as text, when this row is Cursor on-demand with a reset and a dollar cap. */
+export function pacingTexts(
+  row: Quota,
+  now: number,
+  settings: FormatSettings,
+): string[] | null {
+  const lines = onDemandPacingLines(row, now, settings);
+  if (!lines) return null;
+  return [lines.untilReset, lines.dailyBudget, lines.todayRatio];
 }

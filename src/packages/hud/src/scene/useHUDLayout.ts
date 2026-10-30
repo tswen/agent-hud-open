@@ -9,6 +9,7 @@ import { compactAlertDockWidth } from "../IslandNews";
 import {
   cardRect,
   dragSurfaceGeometry,
+  labelWidth,
   parkedRect,
   type HUDRect,
   type StripMetrics,
@@ -21,6 +22,8 @@ import {
   type HUDVendor,
 } from "../model";
 import { peekLineWidth } from "./AgentPeek";
+import { pacingTexts } from "../on-demand-pacing";
+import { useFormat } from "@agent-hud/ui/format-context";
 import { SIMPLE_EDGE_MARGIN } from "./simple-panel";
 import { useNotchGeometry } from "./NotchSurface";
 import { snapshotLanguage } from "@agent-hud/ui/format";
@@ -163,7 +166,25 @@ export function useHUDLayout({
   // On a side edge the line starts behind the dock, so it reads as the dock growing; that side carries no text.
   const peekTuck =
     simplePeek && !horizontal(edge) ? Math.round(strip.width / 2) : 0;
-  const peekWidth =
+  const format = useFormat();
+  const pacingTextsNow =
+    peek && focusedVendor
+      ? focusedVendor.quotas.flatMap(
+          (row) => pacingTexts(row, Date.now(), format) ?? [],
+        )
+      : [];
+  const pacing = pacingTextsNow.length
+    ? {
+        extraHeight: Math.round(48 * scale),
+        minWidth:
+          Math.max(
+            ...pacingTextsNow.map((text) =>
+              labelWidth(text, Math.round(10 * scale)),
+            ),
+          ) + Math.round(28 * scale),
+      }
+    : { extraHeight: 0, minWidth: 0 };
+  const peekWidth = Math.max(
     simplePeek && focusedVendor
       ? peekLineWidth(
           focusedVendor,
@@ -172,7 +193,9 @@ export function useHUDLayout({
           peekTuck,
           snapshot.settings.quotaDisplay,
         )
-      : 196 * scale;
+      : 196 * scale,
+    pacing.minWidth,
+  );
   const targetSize =
     !open && (request || event)
       ? {
@@ -197,14 +220,15 @@ export function useHUDLayout({
       : peek && focusedVendor
         ? {
             width: peekWidth,
-            height: simplePeek
-              ? 26 * scale
-              : (20 +
-                  (1 +
-                    focusedVendor.quotas.length +
-                    (focusedVendor.balance ? 1 : 0)) *
-                    18) *
-                scale,
+            height:
+              (simplePeek
+                ? 26 * scale
+                : (20 +
+                    (1 +
+                      focusedVendor.quotas.length +
+                      (focusedVendor.balance ? 1 : 0)) *
+                      18) *
+                  scale) + pacing.extraHeight,
           }
         : {
             width: fullWidth,

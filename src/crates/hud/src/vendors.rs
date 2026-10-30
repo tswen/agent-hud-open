@@ -3,6 +3,7 @@
 //! `configuredVendors` do, for what the host draws itself: the menu bar item,
 //! the HUD windows' sizes and the Bots' directions.
 use crate::presentation::{mark, resting_agents};
+use chrono::{Datelike, Local, NaiveDate, TimeZone};
 use serde_json::{json, Value};
 
 pub struct Vendor<'a> {
@@ -205,6 +206,116 @@ pub fn tokens_short(tokens: f64) -> String {
         return shown + unit;
     }
     format!("{}", tokens.trunc())
+}
+
+/// Weekdays after `today` through `reset`, including `reset` only when it is Mon–Fri.
+pub fn weekdays_through_reset(today: NaiveDate, reset: NaiveDate) -> i64 {
+    if reset <= today {
+        return 0;
+    }
+    let mut count = 0;
+    let mut day = today.succ_opt();
+    while let Some(current) = day {
+        if current > reset {
+            break;
+        }
+        if current.weekday().number_from_monday() <= 5 {
+            count += 1;
+        }
+        day = current.succ_opt();
+    }
+    count
+}
+
+fn cursor_on_demand(quota: &Value) -> bool {
+    quota["vendor"] == "cursor"
+        && (quota["shortLabel"] == "On-demand"
+            || quota["name"] == "On-demand usage"
+            || quota["legacyWindowId"]
+                .as_str()
+                .is_some_and(|id| id.ends_with("/cursor:extra")))
+}
+
+/// Menu lines under Cursor on-demand. `spending.used` / `limit` are dollars.
+pub fn on_demand_pacing_lines(quota: &Value, now_ms: i64, zh: bool) -> Vec<String> {
+    if !cursor_on_demand(quota) {
+        return Vec::new();
+    }
+    let Some(used) = quota["spending"]["used"]
+        .as_f64()
+        .filter(|used| used.is_finite() && *used >= 0.0)
+    else {
+        return Vec::new();
+    };
+    let Some(limit) = quota["spending"]["limit"]
+        .as_f64()
+        .filter(|limit| limit.is_finite() && *limit > 0.0)
+    else {
+        return Vec::new();
+    };
+    let Some(reset_at) = quota["resetAt"]
+        .as_str()
+        .and_then(|text| chrono::DateTime::parse_from_rfc3339(text).ok())
+        .filter(|reset| reset.timestamp_millis() > now_ms)
+    else {
+        return Vec::new();
+    };
+    let Some(today) = Local
+        .timestamp_millis_opt(now_ms)
+        .single()
+        .map(|instant| instant.date_naive())
+    else {
+        return Vec::new();
+    };
+    let reset_day = reset_at.with_timezone(&Local).date_naive();
+    let days = (reset_day - today).num_days().max(0);
+    let weekdays = weekdays_through_reset(today, reset_day);
+    let until = if zh {
+        format!("距重置还有 {days} 天，其中工作日 {weekdays} 天")
+    } else {
+        format!(
+            "{days} day{} until reset, {weekdays} weekday{}",
+            if days == 1 { "" } else { "s" },
+            if weekdays == 1 { "" } else { "s" }
+        )
+    };
+    let remaining = (limit - used).max(0.0);
+    let daily = if weekdays > 0 {
+        let money = money_short(remaining / weekdays as f64, "USD");
+        if zh {
+            format!("工作日日均可用 ≈ {money}")
+        } else {
+            format!("Weekday daily budget ≈ {money}")
+        }
+    } else if zh {
+        "工作日日均可用：N/A".into()
+    } else {
+        "Weekday daily budget: N/A".into()
+    };
+    let per_day = if weekdays > 0 {
+        remaining / weekdays as f64
+    } else {
+        0.0
+    };
+    let today_line = quota["onDemandPacing"]["todayUsed"]
+        .as_f64()
+        .filter(|spent| spent.is_finite() && per_day > 0.0)
+        .map(|spent| {
+            let shown = format!("{:.2}", spent / per_day);
+            if zh {
+                format!("今日已用 / 日均 ≈ {shown}")
+            } else {
+                format!("Today / daily budget ≈ {shown}")
+            }
+        })
+        .unwrap_or_else(|| {
+            if zh {
+                "今日已用 / 日均：不可用".into()
+            } else {
+                "Today / daily budget: unavailable".into()
+            }
+        });
+    vec![until, daily, today_line]
 }
 
 /// format.ts `moneyShort`: whole units from a hundred up ("$412"), two
@@ -494,5 +605,35 @@ mod tests {
             assert_eq!(selected.len(), 1);
             assert_eq!(selected[0].key, "openai");
         }
+    }
+
+    #[test]
+    fn on_demand_daily_budget_is_dollars_per_weekday() {
+        use chrono::TimeZone;
+        let today = NaiveDate::from_ymd_opt(2026, 10, 30).unwrap();
+        let monday = NaiveDate::from_ymd_opt(2026, 11, 2).unwrap();
+        let saturday = NaiveDate::from_ymd_opt(2026, 11, 7).unwrap();
+        assert_eq!(weekdays_through_reset(today, monday), 1);
+        assert_eq!(weekdays_through_reset(today, saturday), 5);
+        assert_eq!(
+            weekdays_through_reset(today, NaiveDate::from_ymd_opt(2026, 11, 20).unwrap()),
+            15
+        );
+        let now = Local.with_ymd_and_hms(2026, 10, 30, 12, 0, 0).unwrap();
+        let reset = Local.with_ymd_and_hms(2026, 11, 20, 0, 0, 0).unwrap();
+        // $21.24 of a $100 cap, 15 weekdays → about $5.25 a weekday, not the raw cents figure.
+        let quota = json!({
+            "vendor": "cursor",
+            "name": "On-demand usage",
+            "shortLabel": "On-demand",
+            "resetAt": reset.to_rfc3339(),
+            "spending": {"used": 21.24, "limit": 100.0, "currency": "USD"},
+            "onDemandPacing": {"todayUsed": 0.0}
+        });
+        let lines = on_demand_pacing_lines(&quota, now.timestamp_millis(), true);
+        assert_eq!(lines[0], "距重置还有 21 天，其中工作日 15 天");
+        assert!(lines[1].contains("$5.25"), "{}", lines[1]);
+        assert!(!lines[1].contains("3938") && !lines[1].contains("525"));
+        assert_eq!(lines[2], "今日已用 / 日均 ≈ 0.00");
     }
 }

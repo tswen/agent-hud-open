@@ -6,8 +6,14 @@ import {
   weekdaysUntilReset,
 } from "../src/on-demand-pacing.ts";
 
-const utc = { language: "en" as const, calendar: { timeZone: "UTC", firstWeekday: 1 } };
-const zh = { language: "zh" as const, calendar: { timeZone: "UTC", firstWeekday: 1 } };
+const utc = {
+  language: "en" as const,
+  calendar: { timeZone: "UTC", firstWeekday: 1 },
+};
+const zh = {
+  language: "zh" as const,
+  calendar: { timeZone: "UTC", firstWeekday: 1 },
+};
 
 test("weekdays exclude today and include reset day only when it is Mon–Fri", () => {
   // 2026-10-30 Fri -> 2026-11-02 Mon: days 31-1 Sat/Sun off, Mon counts
@@ -16,14 +22,8 @@ test("weekdays exclude today and include reset day only when it is Mon–Fri", (
   assert.equal(calendarDaysUntilReset(reset, now, "UTC"), 3);
   assert.equal(weekdaysUntilReset(reset, now, "UTC"), 1);
   // Reset on Saturday 2026-11-07: Fri Oct 30 -> Sat Nov 7: Sat reset not counted
-  assert.equal(
-    weekdaysUntilReset("2026-11-07T12:00:00Z", now, "UTC"),
-    5,
-  );
-  assert.equal(
-    weekdaysUntilReset("2026-11-08T12:00:00Z", now, "UTC"),
-    5,
-  );
+  assert.equal(weekdaysUntilReset("2026-11-07T12:00:00Z", now, "UTC"), 5);
+  assert.equal(weekdaysUntilReset("2026-11-08T12:00:00Z", now, "UTC"), 5);
   // Reset Friday 2026-11-20 includes that Friday
   const nov = Date.parse("2026-10-30T12:00:00Z");
   assert.equal(weekdaysUntilReset("2026-11-20T00:00:00Z", nov, "UTC"), 15);
@@ -74,4 +74,29 @@ test("daily budget divides remaining allowance by weekday count", () => {
   const cn = onDemandPacingLines(row, now, zh)!;
   assert.match(cn.untilReset, /工作日 3 天/);
   assert.match(cn.dailyBudget, /≈ \$2\.63/);
+});
+
+test("a few hundred dollars left is not shown as thousands", () => {
+  // $590.70 left over 15 weekdays is about $39.38, which used to read $3,938
+  // when dashboard cents were treated as dollars.
+  const row = {
+    id: "x",
+    vendor: "cursor",
+    name: "On-demand usage",
+    shortLabel: "On-demand",
+    usedPercent: 21.24,
+    resetAt: "2026-11-20T00:00:00Z",
+    status: "normal",
+    account: null,
+    spending: { used: 159.3, limit: 750, currency: "USD" },
+    onDemandPacing: { todayUsed: 0 },
+  } as const;
+  const lines = onDemandPacingLines(
+    row,
+    Date.parse("2026-10-30T12:00:00Z"),
+    zh,
+  )!;
+  assert.match(lines.dailyBudget, /\$39\.38/);
+  assert.doesNotMatch(lines.dailyBudget, /3,?938/);
+  assert.match(lines.todayRatio, /≈ 0\.00/);
 });

@@ -25,9 +25,7 @@ export function OnDemandPacingDetails({
         display: "flex",
         flexDirection: "column",
         gap: compact ? 2 : 3,
-        padding: compact
-          ? "0 6px 4px 26px"
-          : "0 6px 6px 26px",
+        padding: compact ? "0 6px 4px 26px" : "0 6px 6px 26px",
         fontSize: compact ? 11 : 12,
         lineHeight: compact ? "14px" : "15px",
         color,
