@@ -23,6 +23,11 @@ import {
   withRowShown,
 } from "@agent-hud/hud/model";
 import {
+  isCursorOnDemandQuota,
+  onDemandPacingLines,
+} from "@agent-hud/hud/on-demand-pacing";
+import { useFormat } from "@agent-hud/ui/format-context";
+import {
   moneyAmount,
   snapshotLanguage,
   quotaPercentLabel,
@@ -66,6 +71,8 @@ export default function SourcesSettings({
   const openPage = useOpenSettingsPage();
   const zh = snapshotLanguage(snapshot) === "zh",
     t = (en: string, cn: string) => (zh ? cn : en);
+  const format = useFormat();
+  const pacingNow = Date.now();
   const providerOrder = (layout.order ?? []).map((key) =>
     key.replace(/^api:/, ""),
   );
@@ -403,104 +410,138 @@ export default function SourcesSettings({
                       )
                       .filter((q): q is NonNullable<typeof q> => Boolean(q))
                       .map((window) => (
-                        <div
-                          key={quotaRowKey(window)}
-                          draggable={!pending}
-                          onDragStart={(event) =>
-                            event.dataTransfer.setData(
-                              "text/agent-hud-window",
-                              quotaRowKey(window),
-                            )
-                          }
-                          onDragOver={(event) => event.preventDefault()}
-                          onDrop={(event) => {
-                            event.preventDefault();
-                            const from = event.dataTransfer.getData(
-                              "text/agent-hud-window",
-                            );
-                            if (!windowOrder.includes(from)) return;
-                            const values = windowOrder.filter(
-                              (id) => id !== from,
-                            );
-                            values.splice(
-                              values.indexOf(quotaRowKey(window)),
-                              0,
-                              from,
-                            );
-                            void changeBlock({ rows: values });
-                          }}
-                          style={{
-                            ...row,
-                            padding: "9px 16px 9px 30px",
-                            fontSize: 12,
-                            cursor: "grab",
-                          }}
-                        >
-                          <span style={{ flex: 1 }}>{window.name}</span>
-                          <span style={{ color: "var(--muted-foreground)" }}>
-                            {quotaPercentLabel(
-                              window.usedPercent,
-                              snapshot.settings.quotaDisplay,
-                            )}
-                          </span>
-                          <Switch
-                            checked={
-                              !quotaRowHidden(window, block.hiddenRows ?? [])
+                        <div key={quotaRowKey(window)}>
+                          <div
+                            draggable={!pending}
+                            onDragStart={(event) =>
+                              event.dataTransfer.setData(
+                                "text/agent-hud-window",
+                                quotaRowKey(window),
+                              )
                             }
-                            disabled={pending}
-                            aria-label={t("Show quota window", "显示额度窗口")}
-                            onCheckedChange={(show) =>
-                              void changeBlock({
-                                hiddenRows: show
-                                  ? withRowShown(
-                                      block.hiddenRows ?? [],
-                                      window,
-                                      windows,
-                                    )
-                                  : [
-                                      ...new Set([
-                                        ...(block.hiddenRows ?? []),
-                                        quotaRowKey(window),
-                                      ]),
-                                    ],
-                              })
-                            }
-                          />
-                          <Button
-                            size="icon-xs"
-                            variant="ghost"
-                            disabled={
-                              pending ||
-                              windowOrder.indexOf(quotaRowKey(window)) === 0
-                            }
-                            onClick={() =>
-                              void changeBlock({
-                                rows: move(
-                                  windowOrder,
-                                  quotaRowKey(window),
-                                  -1,
-                                ),
-                              })
-                            }
+                            onDragOver={(event) => event.preventDefault()}
+                            onDrop={(event) => {
+                              event.preventDefault();
+                              const from = event.dataTransfer.getData(
+                                "text/agent-hud-window",
+                              );
+                              if (!windowOrder.includes(from)) return;
+                              const values = windowOrder.filter(
+                                (id) => id !== from,
+                              );
+                              values.splice(
+                                values.indexOf(quotaRowKey(window)),
+                                0,
+                                from,
+                              );
+                              void changeBlock({ rows: values });
+                            }}
+                            style={{
+                              ...row,
+                              padding: "9px 16px 9px 30px",
+                              fontSize: 12,
+                              cursor: "grab",
+                            }}
                           >
-                            <ChevronUp size={12} />
-                          </Button>
-                          <Button
-                            size="icon-xs"
-                            variant="ghost"
-                            disabled={
-                              pending ||
-                              windowOrder.indexOf(quotaRowKey(window)) ===
-                                windowOrder.length - 1
-                            }
-                            onClick={() =>
-                              void changeBlock({
-                                rows: move(windowOrder, quotaRowKey(window), 1),
-                              })
-                            }
-                          >
-                            <ChevronDown size={12} />
-                          </Button>
+                            <span style={{ flex: 1 }}>{window.name}</span>
+                            <span style={{ color: "var(--muted-foreground)" }}>
+                              {quotaPercentLabel(
+                                window.usedPercent,
+                                snapshot.settings.quotaDisplay,
+                              )}
+                            </span>
+                            <Switch
+                              checked={
+                                !quotaRowHidden(window, block.hiddenRows ?? [])
+                              }
+                              disabled={pending}
+                              aria-label={t(
+                                "Show quota window",
+                                "显示额度窗口",
+                              )}
+                              onCheckedChange={(show) =>
+                                void changeBlock({
+                                  hiddenRows: show
+                                    ? withRowShown(
+                                        block.hiddenRows ?? [],
+                                        window,
+                                        windows,
+                                      )
+                                    : [
+                                        ...new Set([
+                                          ...(block.hiddenRows ?? []),
+                                          quotaRowKey(window),
+                                        ]),
+                                      ],
+                                })
+                              }
+                            />
+                            <Button
+                              size="icon-xs"
+                              variant="ghost"
+                              disabled={
+                                pending ||
+                                windowOrder.indexOf(quotaRowKey(window)) === 0
+                              }
+                              onClick={() =>
+                                void changeBlock({
+                                  rows: move(
+                                    windowOrder,
+                                    quotaRowKey(window),
+                                    -1,
+                                  ),
+                                })
+                              }
+                            >
+                              <ChevronUp size={12} />
+                            </Button>
+                            <Button
+                              size="icon-xs"
+                              variant="ghost"
+                              disabled={
+                                pending ||
+                                windowOrder.indexOf(quotaRowKey(window)) ===
+                                  windowOrder.length - 1
+                              }
+                              onClick={() =>
+                                void changeBlock({
+                                  rows: move(
+                                    windowOrder,
+                                    quotaRowKey(window),
+                                    1,
+                                  ),
+                                })
+                              }
+                            >
+                              <ChevronDown size={12} />
+                            </Button>
+                          </div>
+                          {isCursorOnDemandQuota(window) &&
+                            (() => {
+                              const lines = onDemandPacingLines(
+                                window,
+                                pacingNow,
+                                format,
+                              );
+                              if (!lines) return null;
+                              return (
+                                <div
+                                  style={{
+                                    padding: "0 16px 8px 30px",
+                                    fontSize: 11,
+                                    lineHeight: "15px",
+                                    color: "var(--muted-foreground)",
+                                    display: "flex",
+                                    flexDirection: "column",
+                                    gap: 2,
+                                  }}
+                                >
+                                  <span>{lines.untilReset}</span>
+                                  <span>{lines.dailyBudget}</span>
+                                  <span>{lines.todayRatio}</span>
+                                </div>
+                              );
+                            })()}
                         </div>
                       ))}
                   </div>

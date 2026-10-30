@@ -192,6 +192,9 @@ pub(crate) fn project(
                 None => "—".into(),
             };
             entries.push(item(quota["name"].as_str().unwrap_or(""), &value, true));
+            for line in crate::vendors::on_demand_pacing_lines(quota, now_ms, zh) {
+                entries.push(item(&line, "", false));
+            }
         }
         if vendor.quotas.is_empty() && vendor.balance.is_none() {
             let title = if zh {

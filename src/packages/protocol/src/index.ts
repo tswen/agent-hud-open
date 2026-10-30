@@ -57,6 +57,10 @@ export interface Quota {
   observedAt?: string | null;
   /** Derived by the runtime for this exact window and its model consumers. */
   metrics?: QuotaMetrics;
+  /** Cursor on-demand dollars. The dashboard reports cents; the reader divides by 100. */
+  spending?: { used: number; limit: number; currency: string };
+  /** Pacing inputs derived at snapshot time (today's on-demand spend). */
+  onDemandPacing?: { todayUsed?: number | null };
 }
 export type QuotaMeasure = "quota" | "burn" | "tokens" | "consumed" | "cost";
 export interface QuotaMetrics {

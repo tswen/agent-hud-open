@@ -8,6 +8,11 @@ import {
   type HUDEdge,
   type HUDVendor,
 } from "../model";
+import {
+  isCursorOnDemandQuota,
+  onDemandPacingLines,
+  pacingTexts,
+} from "../on-demand-pacing";
 
 export interface PeekItem {
   id: string;
@@ -101,41 +106,73 @@ export function AgentPeek({
   edge?: HUDEdge;
 }) {
   const color = useMarkLevelText(light);
-  const { quotaDisplay } = useFormat();
+  const format = useFormat();
+  const { quotaDisplay } = format;
+  const now = Date.now();
   if (simple) {
     const items = peekItems(vendor, zh, color, quotaDisplay);
+    const pacing = vendor.quotas.flatMap(
+      (row) => pacingTexts(row, now, format) ?? [],
+    );
     return (
       <div
         className="hud-agent-peek-line"
         style={{
           display: "flex",
-          alignItems: "center",
-          gap: Math.round(12 * scale),
+          flexDirection: "column",
+          justifyContent: "center",
+          gap: Math.round(2 * scale),
           padding: `0 ${Math.round(12 * scale)}px`,
           ...(edge === "right"
             ? { paddingRight: Math.round(12 * scale) + tuck }
             : edge === "left"
               ? { paddingLeft: Math.round(12 * scale) + tuck }
               : {}),
-          height: Math.round(26 * scale),
+          height: "100%",
           fontSize: Math.round(9 * scale),
           whiteSpace: "nowrap",
         }}
       >
-        {items.length ? (
-          items.map((item) => (
-            <span
-              key={item.id}
-              style={{ display: "inline-flex", gap: Math.round(5 * scale) }}
-            >
-              <span style={{ opacity: 0.55 }}>{item.label}</span>
-              <strong style={{ fontWeight: 600, color: item.color }}>
-                {item.value}
-              </strong>
-            </span>
-          ))
-        ) : (
-          <span style={{ opacity: 0.7 }}>{vendor.name}</span>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: Math.round(12 * scale),
+            height: Math.round(26 * scale),
+          }}
+        >
+          {items.length ? (
+            items.map((item) => (
+              <span
+                key={item.id}
+                style={{ display: "inline-flex", gap: Math.round(5 * scale) }}
+              >
+                <span style={{ opacity: 0.55 }}>{item.label}</span>
+                <strong style={{ fontWeight: 600, color: item.color }}>
+                  {item.value}
+                </strong>
+              </span>
+            ))
+          ) : (
+            <span style={{ opacity: 0.7 }}>{vendor.name}</span>
+          )}
+        </div>
+        {pacing.length > 0 && (
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: Math.round(1 * scale),
+              paddingBottom: Math.round(4 * scale),
+              fontSize: Math.round(10 * scale),
+              lineHeight: `${Math.round(13 * scale)}px`,
+              opacity: 0.7,
+            }}
+          >
+            {pacing.map((line) => (
+              <span key={line}>{line}</span>
+            ))}
+          </div>
         )}
       </div>
     );
@@ -146,7 +183,8 @@ export function AgentPeek({
       style={{
         fontSize: 12 * scale,
         padding: `${10 * scale}px ${12 * scale}px`,
-        width: 196 * scale,
+        width: "100%",
+        boxSizing: "border-box",
       }}
     >
       <div
@@ -162,27 +200,52 @@ export function AgentPeek({
         {vendor.name}
       </div>
       {vendor.quotas.map((q) => (
-        <div
-          key={q.id}
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            gap: 8,
-            height: 18 * scale,
-            alignItems: "center",
-          }}
-        >
-          <span style={{ opacity: 0.55 }}>{quotaShortName(q)}</span>
-          <strong
+        <div key={q.id}>
+          <div
             style={{
-              color: q.usedPercent == null ? undefined : color(q.status),
-              fontSize: 12 * scale,
+              display: "flex",
+              justifyContent: "space-between",
+              gap: 8,
+              height: 18 * scale,
+              alignItems: "center",
             }}
           >
-            {q.usedPercent == null
-              ? "--"
-              : quotaPercentLabel(q.usedPercent, quotaDisplay)}
-          </strong>
+            <span style={{ opacity: 0.55 }}>{quotaShortName(q)}</span>
+            <strong
+              style={{
+                color: q.usedPercent == null ? undefined : color(q.status),
+                fontSize: 12 * scale,
+              }}
+            >
+              {q.usedPercent == null
+                ? "--"
+                : quotaPercentLabel(q.usedPercent, quotaDisplay)}
+            </strong>
+          </div>
+          {isCursorOnDemandQuota(q) && onDemandPacingLines(q, now, format) && (
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 2 * scale,
+                paddingBottom: 4 * scale,
+                fontSize: 10 * scale,
+                lineHeight: `${13 * scale}px`,
+                opacity: 0.55,
+              }}
+            >
+              {(() => {
+                const lines = onDemandPacingLines(q, now, format)!;
+                return (
+                  <>
+                    <span>{lines.untilReset}</span>
+                    <span>{lines.dailyBudget}</span>
+                    <span>{lines.todayRatio}</span>
+                  </>
+                );
+              })()}
+            </div>
+          )}
         </div>
       ))}
       {!vendor.quotas.length && !vendor.balance && (

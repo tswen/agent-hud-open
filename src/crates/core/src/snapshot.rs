@@ -560,6 +560,24 @@ impl crate::AgentHudCore {
                 }
                 // legacyWindowId stays: panel layouts, Settings and get_hud name a
                 // row by it (src/packages/hud/src/quota-rows.ts).
+                if on_demand_pacing::is_cursor_on_demand(&row) {
+                    if let (Some(used), Some(limit)) = (
+                        row["spending"]["used"].as_f64(),
+                        row["spending"]["limit"].as_f64(),
+                    ) {
+                        let id = row["id"].as_str().unwrap_or_default();
+                        let samples = self
+                            .meters
+                            .samples
+                            .as_ref()
+                            .and_then(|all| all.get(id))
+                            .map(|v| v.as_slice())
+                            .unwrap_or(&[]);
+                        row["onDemandPacing"] = json!({
+                            "todayUsed": on_demand_pacing::today_used(used, limit, samples, now),
+                        });
+                    }
+                }
                 if let Some(object) = row.as_object_mut() {
                     for key in ["consumerSource", "modelFamilies"] {
                         object.remove(key);

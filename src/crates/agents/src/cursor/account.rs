@@ -328,8 +328,17 @@ pub fn read(host: &dyn Host) -> Result<Reading, String> {
                 if let Some(duration) = duration {
                     quota["windowDurationSeconds"] = json!(duration);
                 }
-                // The dashboard's used/limit fields price spending pools. The
-                // source does not expose a token/credit capacity for these rows.
+                // The dashboard's used/limit fields price spending pools in USD
+                // cents. The source does not expose a token/credit capacity.
+                if key == "extra" {
+                    let pool = &body["individualUsage"]["onDemand"];
+                    if let (Some(used), Some(limit)) =
+                        (number(&pool["used"]), number(&pool["limit"]))
+                    {
+                        quota["spending"] =
+                            json!({"used": used / 100.0, "limit": limit / 100.0, "currency": "USD"});
+                    }
+                }
                 quota
             })
         })
@@ -456,7 +465,8 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let mut body = summary();
         body["individualUsage"]["overall"] = json!({"used": 5.0, "limit": 10.0});
-        body["individualUsage"]["onDemand"] = json!({"used": 1.0, "limit": 10.0});
+        // Dashboard on-demand money is USD cents: $1.00 of a $10.00 cap.
+        body["individualUsage"]["onDemand"] = json!({"used": 100.0, "limit": 1000.0});
         body["teamUsage"] = json!({"pooled": {"used": 2.0, "limit": 10.0}});
         let host = signed_in(&dir, &token(3600)).answer(SUMMARY, Ok(body));
         let reading = read(&host).unwrap();
@@ -480,6 +490,14 @@ mod tests {
             ]
             .map(|window| format!("{account}/{window}"))
         );
+        let on_demand = reading
+            .quotas
+            .iter()
+            .find(|q| q["legacyWindowId"].as_str() == Some(&format!("{account}/cursor:extra")))
+            .unwrap();
+        assert_eq!(on_demand["spending"]["used"], 1.0);
+        assert_eq!(on_demand["spending"]["limit"], 10.0);
+        assert_eq!(on_demand["spending"]["currency"], "USD");
     }
 
     #[test]
